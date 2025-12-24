@@ -1,0 +1,8 @@
+{
+  "name": "Qanoon AI (Kuwait)",
+  "description": "A comprehensive legal AI suite for Kuwait law firms including automated drafting, legal research assistant, and document OCR.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
