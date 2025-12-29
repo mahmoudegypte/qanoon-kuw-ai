@@ -375,6 +375,13 @@ const OCRTool: React.FC = () => {
            )}
         </div>
       </div>
+
+      {/* منطقة الطباعة المخفية */}
+      {activePage && (
+        <div id="print-area" className="hidden print:block p-16 bg-white text-black font-serif text-xl leading-[2.5]">
+            {activePage.extractedText}
+        </div>
+      )}
     </div>
   );
 };

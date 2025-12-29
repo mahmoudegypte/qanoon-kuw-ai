@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateLegalDocument } from '../services/geminiService';
-import { Printer, PenTool, Loader2, Archive, Copy, Check, Layout, ShieldCheck, MessageSquare, Scale, UserCheck, Hash, FileText } from 'lucide-react';
+import { Printer, PenTool, Loader2, Archive, Copy, Check, Layout, ShieldCheck, MessageSquare, Scale, UserCheck, Hash, FileText, Banknote, CreditCard } from 'lucide-react';
 import { FirmSettings, ArchiveItem } from '../types';
 
 const DocumentGenerator: React.FC = () => {
-  const [docType, setDocType] = useState('عقد عمل أهلي (محدد المدة)');
+  const [docType, setDocType] = useState('عقد أتعاب محاماة');
   const [partyA, setPartyA] = useState('');
   const [idA, setIdA] = useState('');
   const [partyB, setPartyB] = useState('');
@@ -15,6 +15,10 @@ const DocumentGenerator: React.FC = () => {
   const [details, setDetails] = useState('');
   const [tone, setTone] = useState<'formal' | 'aggressive' | 'diplomatic'>('formal');
   const [selectedClauses, setSelectedClauses] = useState<string[]>([]);
+  
+  // حقول خاصة بعقد الأتعاب
+  const [feeAmount, setFeeAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('دفعة واحدة عند التوقيع');
   
   const [generatedDoc, setGeneratedDoc] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,6 +36,7 @@ const DocumentGenerator: React.FC = () => {
   ];
 
   const templates = [
+    "عقد أتعاب محاماة",
     "عقد عمل أهلي (محدد المدة)",
     "عقد عمل أهلي (غير محدد المدة)",
     "عقد توريد بضائع ونموذج طلب",
@@ -56,8 +61,15 @@ const DocumentGenerator: React.FC = () => {
 
   useEffect(() => {
     const saved = localStorage.getItem('lawFirmSettings');
-    if (saved) setSettings(JSON.parse(saved));
-  }, []);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setSettings(parsed);
+      // تعبئة الطرف الأول تلقائياً من إعدادات المكتب إذا كان النموذج عقد أتعاب
+      if (docType === 'عقد أتعاب محاماة' && parsed.firmName) {
+        setPartyA(parsed.firmName);
+      }
+    }
+  }, [docType]);
 
   const toggleClause = (clause: string) => {
     setSelectedClauses(prev => 
@@ -77,13 +89,69 @@ const DocumentGenerator: React.FC = () => {
     setLoading(true);
     try {
       const courtDetails = caseNumber ? { name: courtName, caseNumber: caseNumber, section: '' } : undefined;
-      // دمج البيانات في النص المرسل للمحرك لضمان الدقة
-      const enrichedDetails = `
-        الطرف الأول: ${partyA} - الرقم المدني: ${idA || 'غير محدد'}
+      
+      let enrichedDetails = `
+        الطرف الأول: ${partyA} - الرقم المدني/الترخيص: ${idA || 'غير محدد'}
         الطرف الثاني: ${partyB} - الرقم المدني: ${idB || 'غير محدد'}
         نوع الوثيقة: ${docType}
-        الوقائع والبنود الخاصة: ${details}
       `;
+
+      if (docType === 'عقد أتعاب محاماة') {
+        enrichedDetails += `
+          المطلوب صياغة "عقد أتعاب محاماة" مطابق تماماً للنص التالي، مع تعبئة المتغيرات (المبلغ، الأطراف، الموضوع):
+
+          [بداية النموذج]
+          أنه في يوم ....... الموافق ....... انعقد هذا العقد بين كل من:
+          أولاً: مكتب المحامي/ ${partyA} (طرف أول)
+          ثانياً: السيد/ ${partyB} - الرقم المدني (${idB}) (طرف ثان)
+
+          تمهيد:
+          قام الطرف الثاني بتوكيل الطرف الأول هو أو من ينوب عنه في مباشرة: ${details}
+
+          البند الأول:
+          يعد التمهيد السابق جزء لا يتجزأ من هذا العقد وهو مكمل له ولا حق به.
+
+          البند الثاني:
+          يلتزم الطرف الأول بمباشرة الأعمال القانونية اللازمة بشأن الموضوع المبين بالتمهيد الوارد بصدر هذا العقد ويكون الطرف الأول ملزم ببذل العناية اللازمة في العمل الموكل فيه ولا يكون ملزم بتحقيق نتيجة حيث أن القرار الصادر في العمل القانوني بيد الجهة القضائية.
+
+          البند الثالث:
+          1- اتفق الطرفان على أن يدفع الطرف الثاني مبلغ وقدره ${feeAmount} د.ك (فقط ${feeAmount} دينار كويتي لا غير) قيمة الأتعاب للطرف الأول.
+          2- طريقة السداد: ${paymentMethod} (يلتزم الطرف الثاني بدفع الأتعاب وفقاً لهذا الاتفاق).
+
+          البند الرابع:
+          لا تعد ذمة الطرف الثاني مبرئة من أية التزامات مالية (مقدم أتعاب أو مؤخر أتعاب) تجاه الطرف الأول إلا بعد حصوله على سند قبض مذيل بتوقيع الطرف الأول.
+
+          البند الخامس:
+          يستحق الطرف الأول كامل الأتعاب في حالة عزوف الطرف الثاني عن الاستمرار في الخصومة أو في حالة التصالح مع الخصم أو إذا أخل ببنود هذا العقد مع مراعاة ما ورد بالفقرة 2 من البند الثالث.
+
+          البند السادس:
+          يلتزم الطرف الثاني بدفع الرسوم القضائية والمصاريف الخاصة بالعمل المكلف به الطرف الأول من مصاريف تصوير ورسوم رفع الدعاوى القضائية وأمانات الخبرة مع تحمله المسئولية كاملة في حالة تقاعسه عن دفع الرسوم والأمانات والمصاريف الخاصة بالدعاوى كما يتعهد بالإعلان بالإرشاد على عنوان خصمه ويتحمل مسئولية الإعلان كاملة في حالة عدم تمامه.
+
+          البند السابع:
+          كذلك يلتزم الطرف الثاني بتسليم الطرف الأول المستندات والأوراق الخاصة بالدعاوى أو أي إجراء قانوني قبل فترة كافية من تقديم تلك المستندات للمحكمة أو للجهات المختصة كما أنه ملزم بترجمة ما يستلزم من مستندات وتكون الترجمة على نفقته الخاصة في جهة معتمدة وفي حال تأخر الطرف الثاني عن تسليم الطرف الأول تلك المستندات فأن الطرف الأول لا يكون مسئولاً عما يترتب عن ذلك من عواقب.
+
+          البند الثامن:
+          يلتزم الطرف الثاني بالحضور إلى المحكمة متى طلب منه ذلك وكذلك يتعهد بإحضار الشهود أيضاً سواء كانوا شهود الإثبات أو شهود النفي ويتحمل الطرف الثاني المسئولية كاملة في حالة عدم إحضار شهوده أو الإدلاء بأي بيانات خاطئة للطرف الأول بخصوص القيام بالعمل القانوني المبين في مقدمة هذا العقد.
+
+          البند التاسع:
+          للطرف الأول استيفاء ما قد يتبقى من أتعاب من المبالغ المحصلة من الأعمال القانونية الموضحة بالتمهيد الوارد بصدر هذا العقد كما للطرف الأول استيفاء ما له من أتعاب مستحقة لدى الطرف الثاني من أي أموال خاصة به حق تتبعها في أي يد تكون.
+
+          البند العاشر:
+          تم الاتفاق بين الطرفين على أن الطعن بالتمييز هو طريق غير عادي للطعن على الأحكام القضائية ويتم تقديم الطعن المذكور بناء على طلب الطرف الثاني مع تحمل الطرف الثاني على الأتعاب التي تم الاتفاق عليها بخصوص الطعن بالتمييز، كما يلتزم الطرف الثاني بسداد الرسم القانوني المقرر للطعن بالتمييز لدى القضاء.
+
+          البند الحادي عشر:
+          أطلع الطرفان على ما جاء ببنود هذا العقد وناقشوها واتفقوا على ما جاء بها وأقروها.
+
+          البند الثاني عشر:
+          محاكم دولة الكويت هي المختصة بتفسير بنود هذا العقد وبنظر أي نزاع قد ينشأ لا قدر الله بين الطرفين.
+
+          (توقيع الطرف الأول)                               (توقيع الطرف الثاني)
+          [نهاية النموذج]
+        `;
+      } else {
+        enrichedDetails += `\nالوقائع والبنود الخاصة: ${details}`;
+      }
+
       const result = await generateLegalDocument(docType, partyA, partyB, enrichedDetails, {
         courtDetails,
         clauses: selectedClauses,
@@ -103,7 +171,7 @@ const DocumentGenerator: React.FC = () => {
       id: Date.now().toString(),
       title: `${docType} - ${partyA}`,
       caseNumber: caseNumber || 'بدون رقم',
-      clientName: partyA,
+      clientName: partyB, // في عقد الأتعاب الطرف الثاني هو الموكل
       type: 'contract',
       content: generatedDoc,
       timestamp: new Date(),
@@ -130,7 +198,7 @@ const DocumentGenerator: React.FC = () => {
             <select 
               value={docType}
               onChange={(e) => setDocType(e.target.value)}
-              className="w-full p-5 bg-navy-50 dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 transition-all dark:text-white text-lg"
+              className="w-full p-5 bg-navy-50 dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 transition-all text-navy-900 dark:text-white text-lg"
             >
               {templates.map(t => <option key={t}>{t}</option>)}
             </select>
@@ -140,38 +208,64 @@ const DocumentGenerator: React.FC = () => {
             {/* الطرف الأول */}
             <div className="space-y-2">
               <label className="text-xs font-black text-navy-900 dark:text-gray-300 flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-gold-600" /> الطرف الأول (الموكل)
+                <Scale className="w-4 h-4 text-gold-600" /> {docType === 'عقد أتعاب محاماة' ? 'الطرف الأول (المكتب/المحامي)' : 'الطرف الأول'}
               </label>
-              <input type="text" value={partyA} onChange={(e) => setPartyA(e.target.value)} placeholder="الاسم الكامل" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 dark:text-white placeholder:text-gray-400" />
+              <input type="text" value={partyA} onChange={(e) => setPartyA(e.target.value)} placeholder="الاسم الكامل" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 text-navy-900 dark:text-white placeholder:text-gray-400" />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-black text-navy-900 dark:text-gray-300 flex items-center gap-2">
-                <Hash className="w-4 h-4 text-gold-600" /> الرقم المدني (الطرف 1)
+                <Hash className="w-4 h-4 text-gold-600" /> الرقم المدني/الترخيص
               </label>
-              <input type="text" value={idA} onChange={(e) => setIdA(e.target.value)} placeholder="أدخل 12 خانة" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 dark:text-white placeholder:text-gray-400" />
+              <input type="text" value={idA} onChange={(e) => setIdA(e.target.value)} placeholder="رقم الهوية/القيد" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 text-navy-900 dark:text-white placeholder:text-gray-400" />
             </div>
 
             {/* الطرف الثاني */}
             <div className="space-y-2">
               <label className="text-xs font-black text-navy-900 dark:text-gray-300 flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-red-600" /> الطرف الثاني (الخصم)
+                <UserCheck className="w-4 h-4 text-red-600" /> {docType === 'عقد أتعاب محاماة' ? 'الطرف الثاني (الموكل)' : 'الطرف الثاني'}
               </label>
-              <input type="text" value={partyB} onChange={(e) => setPartyB(e.target.value)} placeholder="الاسم الكامل" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 dark:text-white placeholder:text-gray-400" />
+              <input type="text" value={partyB} onChange={(e) => setPartyB(e.target.value)} placeholder="الاسم الكامل" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 text-navy-900 dark:text-white placeholder:text-gray-400" />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-black text-navy-900 dark:text-gray-300 flex items-center gap-2">
                 <Hash className="w-4 h-4 text-red-600" /> الرقم المدني (الطرف 2)
               </label>
-              <input type="text" value={idB} onChange={(e) => setIdB(e.target.value)} placeholder="أدخل 12 خانة" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 dark:text-white placeholder:text-gray-400" />
+              <input type="text" value={idB} onChange={(e) => setIdB(e.target.value)} placeholder="أدخل 12 خانة" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 text-navy-900 dark:text-white placeholder:text-gray-400" />
             </div>
 
+            {/* حقول خاصة بعقد الأتعاب */}
+            {docType === 'عقد أتعاب محاماة' && (
+              <>
+                <div className="md:col-span-2 grid grid-cols-2 gap-6 bg-gold-50 dark:bg-gold-900/10 p-4 rounded-2xl border border-gold-200 dark:border-gold-900/30">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-navy-900 dark:text-gold-500 flex items-center gap-2">
+                      <Banknote className="w-4 h-4" /> مبلغ الأتعاب (د.ك)
+                    </label>
+                    <input type="number" value={feeAmount} onChange={(e) => setFeeAmount(e.target.value)} placeholder="30000" className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-gold-500/30 rounded-2xl font-black outline-none focus:border-gold-500 text-navy-900 dark:text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-navy-900 dark:text-gold-500 flex items-center gap-2">
+                      <CreditCard className="w-4 h-4" /> طريقة السداد
+                    </label>
+                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-gold-500/30 rounded-2xl font-black outline-none focus:border-gold-500 text-navy-900 dark:text-white text-sm">
+                      <option>دفعة واحدة عند التوقيع</option>
+                      <option>مقدم 50% والباقي عند الحكم</option>
+                      <option>أقساط شهرية</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="md:col-span-2 space-y-2">
-              <label className="text-xs font-black text-navy-900 dark:text-gray-300">تفاصيل إضافية / وقائع النزاع / بنود خاصة</label>
+              <label className="text-xs font-black text-navy-900 dark:text-gray-300">
+                {docType === 'عقد أتعاب محاماة' ? 'موضوع القضية / الجناية (للتمهيد)' : 'تفاصيل إضافية / وقائع النزاع'}
+              </label>
               <textarea 
                 value={details} 
                 onChange={(e) => setDetails(e.target.value)} 
-                placeholder="اكتب هنا أي تفاصيل تريد أن يراعيها المحرك في الصياغة..."
-                className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 dark:text-white min-h-[150px] placeholder:text-gray-400"
+                placeholder={docType === 'عقد أتعاب محاماة' ? "مثال: جناية مخدرات والمتهم فيها السيد/..." : "اكتب هنا أي تفاصيل تريد أن يراعيها المحرك..."}
+                className="w-full p-4 bg-white dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-2xl font-black outline-none focus:border-gold-500 text-navy-900 dark:text-white min-h-[150px] placeholder:text-gray-400"
               />
             </div>
           </div>

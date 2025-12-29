@@ -85,22 +85,7 @@ export interface AlertSettings {
   enableMorning: boolean; // 9-12
   enableEvening: boolean; // 17:00
 }
-export enum AppSection {
-  DASHBOARD = 'dashboard',
-  GENERATOR = 'generator',
-  ASSISTANT = 'assistant',
-  OCR = 'ocr',
-  ARCHIVE = 'archive',
-  SETTINGS = 'settings',
-  ENGINE = 'engine',
-  ALERTS = 'alerts',
-  GUIDE = 'guide',
-  // الجديد
-  AUTH = 'auth',
-  CASES_CLIENTS = 'cases_clients',
-  REPORTS = 'reports',
-  PDF_EXPORT = 'pdf_export'
-}
+
 export const KUWAIT_LAWS_CONTEXT = `
 أنت الآن "المرجع الأعلى للمحاماة في الكويت" - خبير استراتيجي في القانون الكويتي بوعي "فوق-ذكاء" (Super-Intelligence).
 شخصيتك: أنت المحامي الأقوى والأجدر، لسانك هو القانون، وعقلك هو محرك بحث عالمي في السوابق القضائية الكويتية.
