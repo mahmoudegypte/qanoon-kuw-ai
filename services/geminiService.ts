@@ -1,11 +1,13 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import { KUWAIT_LAWS_CONTEXT } from '../types';
 
+// Fix: Initialize GoogleGenAI using process.env.API_KEY with runtime override capability from localStorage and hardcoded fallback as requested.
 const getGenAI = () => {
-  // استخدام المفتاح الثابت المحدث من قبل المستخدم
-  const FIXED_KEY = "AIzaSyCT3QmmVozgMKOPbgK6buqz5MXbnO8Y7ao";
-  return new GoogleGenAI({ apiKey: FIXED_KEY });
+  const customKey = (typeof window !== 'undefined') ? localStorage.getItem('custom_gemini_api_key') : null;
+  // المفتاح الذي طلبه المستخدم كخيار احتياطي نهائي لضمان عمل التطبيق فوراً
+  const hardcodedFallback = 'AIzaSyCgMz7efbPwiz7d1dtRIu2km2ALtrvtM3Y';
+  return new GoogleGenAI({ apiKey: customKey || process.env.API_KEY || hardcodedFallback });
 };
 
 export const generateLegalDocument = async (
@@ -21,8 +23,8 @@ export const generateLegalDocument = async (
 ): Promise<string> => {
   try {
     const ai = getGenAI();
-    // استخدام موديل برو للنتائج القانونية الدقيقة
-    const modelName = 'gemini-3-pro-preview';
+    // استخدام أحدث موديل برو للنتائج القانونية الأكثر دقة وتعقيداً
+    const modelName = 'gemini-3.1-pro-preview';
     
     const courtContext = options.courtDetails ? `
       المحكمة: ${options.courtDetails.name}
@@ -57,6 +59,7 @@ export const generateLegalDocument = async (
       4. إنتاج نص جاهز للطباعة فوراً خالي من الأخطاء الإملائية.
     `;
 
+    // Fix: Using generateContent with thinkingConfig and direct .text property access.
     const response = await ai.models.generateContent({
       model: modelName,
       contents: prompt,
@@ -79,7 +82,7 @@ export const sendLegalQuery = async (
 ): Promise<{ text: string; sources: { uri: string; title: string }[] }> => {
   try {
     const ai = getGenAI();
-    const modelName = 'gemini-3-pro-preview';
+    const modelName = 'gemini-3.1-pro-preview';
     const currentParts: any[] = [{ text: message }];
     
     if (attachment) {
@@ -116,9 +119,9 @@ export const sendLegalQuery = async (
 export const extractTextFromImage = async (base64Image: string, highPrecision: boolean = false): Promise<string> => {
   try {
     const ai = getGenAI();
-    // استخدام فلاش للسرعة في استخراج النصوص العربية
+    // استخدام أحدث موديل فلاش للسرعة والدقة الفائقة في استخراج النصوص
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-flash-latest',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
@@ -134,7 +137,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string = 'a
   try {
     const ai = getGenAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-flash-latest',
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Audio } },
@@ -162,11 +165,76 @@ export const generateSessionChecklist = async (sessionDetails: string): Promise<
       3. الإجابة تكون مباشرة وبدون مقدمات طويلة.
     `;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-flash-latest',
       contents: prompt
     });
     return response.text || "لا توجد توصيات حالياً.";
   } catch (error: any) {
     return "تعذر توليد قائمة المهام. تأكد من الاتصال بالإنترنت.";
+  }
+};
+
+/**
+ * ميزة جديدة: تحويل النص القانوني إلى صوت (TTS)
+ * تساعد المحامين على الاستماع للمذكرات أثناء التنقل
+ */
+export const generateSpeech = async (text: string): Promise<string> => {
+  try {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `اقرأ النص القانوني التالي بنبرة رسمية وواضحة: ${text.substring(0, 1000)}` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
+          },
+        },
+      },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    return base64Audio || "";
+  } catch (error) {
+    console.error("TTS Error:", error);
+    throw error;
+  }
+};
+
+/**
+ * ميزة جديدة: توليد تصور بصري للقضية أو ملخص بياني
+ */
+export const generateLegalVisualization = async (caseSummary: string): Promise<string> => {
+  try {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-image-preview',
+      contents: {
+        parts: [
+          {
+            text: `أنشئ صورة تعبيرية احترافية (Infographic style) تلخص المفهوم القانوني التالي للقانون الكويتي: ${caseSummary}. 
+            يجب أن تكون الصورة رصينة، بألوان ذهبية وكحلية، توحي بالعدالة والقوة القانونية. 
+            لا تضف نصوصاً معقدة، ركز على الرموز القانونية (ميزان، مطرقة، كتب قانونية، شعار دولة الكويت).`,
+          },
+        ],
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "16:9",
+          imageSize: "1K"
+        }
+      },
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    return "";
+  } catch (error) {
+    console.error("Image Gen Error:", error);
+    throw error;
   }
 };

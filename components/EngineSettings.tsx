@@ -1,19 +1,27 @@
 
 import React, { useState, useEffect } from 'react';
-import { Key, Cpu, Brain, AlertCircle, Save, CheckCircle, Zap, ShieldCheck, Eye, EyeOff, Copy, Lock, Activity } from 'lucide-react';
+import { Cpu, Brain, Save, Zap, Activity } from 'lucide-react';
 
 const EngineSettings: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<'flash' | 'pro'>('flash');
   const [activeModel, setActiveModel] = useState<'flash' | 'pro'>('flash');
-  const [showKey, setShowKey] = useState(false);
+  const [customKey, setCustomKey] = useState('');
   const [saved, setSaved] = useState(false);
   
-  // تثبيت المفتاح المطلوب
-  const FIXED_API_KEY = "AIzaSyCT3QmmVozgMKOPbgK6buqz5MXbnO8Y7ao";
-
   useEffect(() => {
     // جلب الإعداد المحفوظ، وإذا لم يوجد نعتبر Flash هو الافتراضي
     const savedModel = localStorage.getItem('preferred_legal_model') as 'flash' | 'pro';
+    const savedKey = localStorage.getItem('custom_gemini_api_key');
+    
+    // إذا لم يكن هناك مفتاح محفوظ، نضع المفتاح الذي زوده المستخدم كافتراضي
+    if (!savedKey) {
+      const defaultKey = 'AIzaSyCgMz7efbPwiz7d1dtRIu2km2ALtrvtM3Y';
+      setCustomKey(defaultKey);
+      localStorage.setItem('custom_gemini_api_key', defaultKey);
+    } else {
+      setCustomKey(savedKey);
+    }
+    
     if (savedModel) {
       setSelectedModel(savedModel);
       setActiveModel(savedModel);
@@ -27,14 +35,10 @@ const EngineSettings: React.FC = () => {
 
   const handleSave = () => {
     localStorage.setItem('preferred_legal_model', selectedModel);
+    localStorage.setItem('custom_gemini_api_key', customKey);
     setActiveModel(selectedModel);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(FIXED_API_KEY);
-    alert("تم نسخ المفتاح إلى الحافظة");
   };
 
   return (
@@ -57,48 +61,39 @@ const EngineSettings: React.FC = () => {
       </div>
 
       <div className="space-y-10">
-        {/* قسم مفتاح API */}
-        <div className="bg-white dark:bg-navy-800 rounded-[3rem] shadow-2xl border-2 border-navy-200 dark:border-navy-700 overflow-hidden">
-          <div className="p-8 sm:p-12 space-y-8">
-            <div className="flex items-center gap-4">
-              <div className="bg-gold-500 p-4 rounded-2xl shadow-lg">
-                <Key className="w-8 h-8 text-navy-950" />
+        {/* قسم إدارة مفتاح API */}
+        <div className="bg-white dark:bg-navy-800 rounded-[3rem] shadow-xl border-2 border-navy-100 dark:border-navy-700 p-8 sm:p-12 space-y-8">
+           <div className="flex items-center gap-4 mb-4">
+              <div className="bg-navy-900 p-3 rounded-xl shadow-lg">
+                <Zap className="w-6 h-6 text-gold-500" />
               </div>
-              <div className="text-right">
-                <h3 className="font-black text-navy-900 dark:text-white text-2xl">مفتاح الربط النشط</h3>
-                <p className="text-sm text-gray-500 font-bold mt-1">المفتاح القانوني المعتمد للاتصال بمحرك Gemini.</p>
+              <h3 className="font-black text-navy-900 dark:text-white text-2xl tracking-tight">مفتاح الوصول (API Key)</h3>
+           </div>
+           
+           <div className="space-y-4">
+              <p className="text-sm text-navy-700 dark:text-gray-400 font-bold leading-relaxed">
+                يمكنك إدخال مفتاح API الخاص بك لتجاوز الحدود العامة وضمان استقرار الخدمة. يتم تخزين المفتاح محلياً في متصفحك فقط.
+              </p>
+              <div className="relative">
+                <input 
+                  type="password"
+                  value={customKey}
+                  onChange={(e) => setCustomKey(e.target.value)}
+                  placeholder="أدخل مفتاح AIza..."
+                  className="w-full p-6 bg-gray-50 dark:bg-navy-900 border-2 border-navy-900 dark:border-navy-600 rounded-3xl font-mono text-sm outline-none focus:border-gold-500 transition-all text-navy-900 dark:text-white"
+                />
+                <button 
+                  onClick={() => {
+                    setCustomKey('');
+                    localStorage.removeItem('custom_gemini_api_key');
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  title="مسح المفتاح"
+                >
+                  مسح
+                </button>
               </div>
-            </div>
-
-            <div className="bg-navy-50 dark:bg-navy-900/50 p-8 rounded-[2rem] border-2 border-navy-100 dark:border-navy-700 space-y-6">
-              <div className="flex flex-col gap-4">
-                <div className="flex justify-between items-center px-2">
-                  <label className="text-sm font-black text-navy-900 dark:text-gold-500 uppercase tracking-widest flex items-center gap-2">
-                    <Lock className="w-4 h-4" />
-                    المفتاح الحالي:
-                  </label>
-                  <button onClick={() => setShowKey(!showKey)} className="text-navy-400 hover:text-gold-600 transition-colors flex items-center gap-2 text-xs font-black">
-                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    {showKey ? 'إخفاء' : 'إظهار'}
-                  </button>
-                </div>
-                
-                <div className="relative group">
-                  <input 
-                    type={showKey ? "text" : "password"}
-                    readOnly
-                    value={FIXED_API_KEY}
-                    className="w-full p-6 bg-white dark:bg-navy-950 border-2 border-gold-500/30 dark:border-navy-600 rounded-2xl font-mono text-xl outline-none shadow-inner text-navy-950 dark:text-gold-500 text-center tracking-widest"
-                  />
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                    <button onClick={copyToClipboard} className="p-3 bg-gray-100 dark:bg-navy-800 hover:bg-gold-500 hover:text-white rounded-xl transition-all shadow-md">
-                      <Copy className="w-5 h-5 text-gray-500 hover:text-white" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+           </div>
         </div>
 
         {/* قسم اختيار الموديل */}
@@ -172,20 +167,6 @@ const EngineSettings: React.FC = () => {
                 <Save className="w-8 h-8" />
                 {saved ? 'تم تفعيل المحرك الجديد!' : (selectedModel === activeModel ? 'هذا المحرك نشط بالفعل' : 'تفعيل المحرك المختار')}
              </button>
-           </div>
-        </div>
-
-        {/* تنبيه الأمان والخصوصية */}
-        <div className="bg-navy-900 p-10 rounded-[3.5rem] border-4 border-gold-500/20 flex flex-col sm:flex-row items-center gap-10 shadow-2xl">
-           <div className="w-28 h-28 bg-white/5 rounded-[2.5rem] flex items-center justify-center shadow-inner shrink-0 border border-white/10 relative">
-              <ShieldCheck className="w-14 h-14 text-gold-500" />
-              <div className="absolute -top-2 -right-2 bg-green-500 w-6 h-6 rounded-full border-4 border-navy-900 animate-pulse"></div>
-           </div>
-           <div className="text-right flex-1">
-              <h4 className="font-black text-gold-500 text-2xl mb-3">حماية بيانات المكتب</h4>
-              <p className="text-lg text-navy-100 font-medium leading-relaxed opacity-80">
-                 يتم استخدام مفتاح الربط لإجراء الاتصال الآمن مع خوادم الذكاء الاصطناعي. كافة العمليات القانونية مشفرة ولا يتم تخزين بيانات عملائك خارج جهازك الشخصي.
-              </p>
            </div>
         </div>
       </div>

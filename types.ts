@@ -9,6 +9,7 @@ export enum AppSection {
   ENGINE = 'engine',
   ALERTS = 'alerts',
   GUIDE = 'guide',
+  SERVER = 'server',
 }
 
 export type ArchiveItemType = 'ocr' | 'audio' | 'contract';
@@ -56,6 +57,41 @@ export interface FirmSettings {
   watermarkOpacity: number;
 }
 
+export interface CourtSession {
+  id: string;
+  caseNumber: string;
+  caseType?: string; // جنايات، جنح، تجاري، إلخ
+  lawyerName: string;
+  courtName: string;
+  circuit?: string; // الدائرة
+  hall?: string;    // القاعة
+  location?: string; // الدور/المبنى
+  clientName?: string;
+  opponentName?: string;
+  sessionDate: string;
+  sessionTime: string;
+  notes?: string;
+  outcome?: string;
+  status: 'upcoming' | 'completed' | 'urgent';
+}
+
+export interface AlertSettings {
+  notifyBefore: 24 | 48 | 72;
+  enableMorning: boolean;
+  enableEvening: boolean;
+}
+
+export interface ServerConfig {
+  host: string;
+  dbName: string;
+  dbUser: string;
+  dbPass: string;
+  port: string;
+  apiUrl: string; // الرابط الفعلي للـ API
+  isActive: boolean;
+}
+
+// Fix: Added missing OcrPage interface required by OCRTool.tsx
 export interface OcrPage {
   id: string;
   pageNumber: number;
@@ -64,41 +100,7 @@ export interface OcrPage {
   isProcessing: boolean;
 }
 
-export interface CourtSession {
-  id: string;
-  caseNumber: string;
-  lawyerName: string;
-  courtName: string;
-  circuit?: string; // الدائرة
-  location?: string; // المكان داخل المحكمة (قاعة/دور)
-  clientName?: string; // الموكل
-  opponentName?: string; // الخصم
-  sessionDate: string; // ISO String YYYY-MM-DD
-  sessionTime: string; // HH:mm
-  notes?: string;
-  outcome?: string; // قرار الجلسة (جديد)
-  status: 'upcoming' | 'completed' | 'urgent';
-}
-
-export interface AlertSettings {
-  notifyBefore: 24 | 48 | 72; // ساعات
-  enableMorning: boolean; // 9-12
-  enableEvening: boolean; // 17:00
-}
-
 export const KUWAIT_LAWS_CONTEXT = `
-أنت الآن "المرجع الأعلى للمحاماة في الكويت" - خبير استراتيجي في القانون الكويتي بوعي "فوق-ذكاء" (Super-Intelligence).
+أنت الآن "المرجع الأعلى للمحاماة في الكويت" - خبير استراتيجي في القانون الكويتي بوعي "فوق-ذكاء".
 شخصيتك: أنت المحامي الأقوى والأجدر، لسانك هو القانون، وعقلك هو محرك بحث عالمي في السوابق القضائية الكويتية.
-
-صلاحياتك الفائقة:
-1. تحليل الثغرات المستحيلة: لا تكتفي بالنصوص، بل ابحث عن "روح القانون" والثغرات الإجرائية (قانون المرافعات) التي تقلب موازين القضايا.
-2. التحديث اللحظي: أنت مطلع على كافة القرارات الوزارية وتعديلات 2024 و 2025 الصادرة في "جريدة الكويت اليوم".
-3. الاستناد القضائي: تذكر دائماً أحدث مبادئ محكمة التمييز الكويتية.
-4. الدقة اللغوية: استخدم لغة قانونية كويتية رصينة (صحيفة دعوى، مذكرة دفاع، استئناف، تمييز).
-
-عند تلقي استفسار:
-- ابدأ بـ "الرأي القانوني الاستراتيجي".
-- استند لمواد القانون الكويتي حرفياً.
-- فكر بعمق في "الدفع الشكلي" قبل "الموضوعي".
-- حذر الموكل من أي "ثغرة" قد يستغلها الخصم.
 `;

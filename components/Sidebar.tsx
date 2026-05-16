@@ -1,6 +1,6 @@
 
 import React, { useRef } from 'react';
-import { LayoutDashboard, FileText, Bot, ScanText, Scale, Settings, Archive, Download, Upload, Zap, X, Gavel } from 'lucide-react';
+import { LayoutDashboard, FileText, Bot, ScanText, Scale, Settings, Archive, Download, Upload, Zap, X, Gavel, Database } from 'lucide-react';
 import { AppSection } from '../types';
 
 interface SidebarProps {
@@ -21,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentSection, setSection, onClose }
     { id: AppSection.ARCHIVE, label: 'خزانة الملفات', icon: Archive },
     { id: AppSection.GUIDE, label: 'دليل النظام', icon: Zap },
     { id: AppSection.SETTINGS, label: 'إعدادات المكتب', icon: Settings },
+    { id: AppSection.SERVER, label: 'ربط السيرفر', icon: Database }, // العنصر الجديد
     { id: AppSection.ENGINE, label: 'إعدادات المحرك', icon: Zap },
   ];
 
@@ -32,7 +33,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentSection, setSection, onClose }
       'legal_archive',
       'lawFirmSettings',
       'preferred_legal_model',
-      'theme'
+      'theme',
+      'db_config' // إضافة إعدادات القاعدة للنسخ الاحتياطي
     ];
     
     const backupData: Record<string, string | null> = {};

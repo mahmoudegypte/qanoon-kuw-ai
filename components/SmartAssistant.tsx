@@ -1,15 +1,15 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { sendLegalQuery, transcribeAudio } from '../services/geminiService';
+import { sendLegalQuery, transcribeAudio, generateSpeech, generateLegalVisualization } from '../services/geminiService';
 import { ChatMessage } from '../types';
-import { Send, Bot, User, Globe, Search, X, Camera, ZoomIn, BrainCircuit, Mic, Square, Loader2, AlertCircle, Key, RefreshCw, Paperclip, FileText, File } from 'lucide-react';
+import { Send, Bot, User, Globe, Search, X, Camera, ZoomIn, BrainCircuit, Mic, Square, Loader2, AlertCircle, Key, RefreshCw, Paperclip, FileText, File, Volume2, Image as ImageIcon, Download } from 'lucide-react';
 
 const SmartAssistant: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'model',
-      text: 'أهلاً بك زميلي العزيز. أنا مستشارك القانوني الاستراتيجي "الأقوى والأجدر" لعام 2025. تم تفعيل "وضع التفكير العميق" للبحث في أعقد الثغرات والقوانين الكويتية المحدثة. كيف يمكنني إبهارك اليوم؟',
+      text: 'أهلاً بك زميلي العزيز. أنا مستشارك القانوني الاستراتيجي "الأقوى والأجدر" لعام 2026. تم تفعيل "وضع التفكير العميق" للبحث في أعقد الثغرات والقوانين الكويتية المحدثة. كيف يمكنني إبهارك اليوم؟',
       timestamp: new Date()
     }
   ]);
@@ -17,6 +17,8 @@ const SmartAssistant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState<string | null>(null);
+  const [isVisualizing, setIsVisualizing] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -215,6 +217,51 @@ const SmartAssistant: React.FC = () => {
     }
   };
 
+  const handleTTS = async (msgId: string, text: string) => {
+    if (isSpeaking) return;
+    setIsSpeaking(msgId);
+    try {
+      const base64 = await generateSpeech(text);
+      if (base64) {
+        const audio = new Audio(`data:audio/mp3;base64,${base64}`);
+        audio.onended = () => setIsSpeaking(null);
+        audio.play();
+      } else {
+        setIsSpeaking(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setIsSpeaking(null);
+    }
+  };
+
+  const handleVisualize = async (msgId: string, text: string) => {
+    if (isVisualizing) return;
+    setIsVisualizing(msgId);
+    try {
+      const imageUrl = await generateLegalVisualization(text);
+      if (imageUrl) {
+        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, image: imageUrl } : m));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsVisualizing(null);
+    }
+  };
+
+  const handleDownload = (text: string) => {
+    const blob = new Blob([text], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Consultation-${new Date().toLocaleDateString('ar-KW')}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-navy-900 transition-colors duration-300 relative">
       {lightboxImage && (
@@ -257,6 +304,31 @@ const SmartAssistant: React.FC = () => {
                     <p key={i} className={line.includes('قانون') || line.includes('المادة') ? 'font-black text-gold-600' : ''}>{line}</p>
                   ))}
                 </div>
+
+                {msg.role === 'model' && (
+                  <div className="mt-4 flex gap-2 border-t border-gray-100 dark:border-navy-700 pt-3">
+                    <button 
+                      onClick={() => handleTTS(msg.id, msg.text)}
+                      className={`p-2 rounded-lg flex items-center gap-2 text-[10px] font-black transition-all ${isSpeaking === msg.id ? 'bg-gold-500 text-white animate-pulse' : 'bg-gray-50 dark:bg-navy-700 text-navy-700 dark:text-gray-300 hover:bg-gold-100'}`}
+                    >
+                      <Volume2 className="w-4 h-4" /> {isSpeaking === msg.id ? 'جاري القراءة...' : 'استماع'}
+                    </button>
+                    <button 
+                      onClick={() => handleVisualize(msg.id, msg.text)}
+                      className={`p-2 rounded-lg flex items-center gap-2 text-[10px] font-black transition-all ${isVisualizing === msg.id ? 'bg-navy-900 text-white animate-pulse' : 'bg-gray-50 dark:bg-navy-700 text-navy-700 dark:text-gray-300 hover:bg-navy-100'}`}
+                    >
+                      {isVisualizing === msg.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                      {isVisualizing === msg.id ? 'جاري التوليد...' : 'تصور بصري'}
+                    </button>
+                    <button 
+                      onClick={() => handleDownload(msg.text)}
+                      className="p-2 bg-gray-50 dark:bg-navy-700 text-navy-700 dark:text-gray-300 rounded-lg flex items-center gap-2 text-[10px] font-black hover:bg-gold-500 hover:text-white transition-all"
+                      title="تحميل الاستشارة"
+                    >
+                      <Download className="w-4 h-4" /> تحميل
+                    </button>
+                  </div>
+                )}
                 
                 {msg.sources && (
                   <div className="mt-6 pt-6 border-t border-gray-100 dark:border-navy-700 flex flex-wrap gap-2">

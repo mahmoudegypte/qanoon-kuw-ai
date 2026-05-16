@@ -1,13 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { CourtSession, AlertSettings, ArchiveItem } from '../types';
-import { generateSessionChecklist } from '../services/geminiService';
+import { CourtSession, AlertSettings } from '../types';
+import { StorageService } from '../services/storageService';
 import { 
-  Calendar, MapPin, User, Trash2, Plus, Gavel, Edit, 
-  CalendarPlus, Sparkles, ClipboardList, Save, X, 
-  BrainCircuit, Loader2, Clock, ShieldCheck, BellOff, Bell,
-  UserCheck, Users, Landmark, Printer, ArrowLeftRight, 
-  CheckCircle2, AlertTriangle, FileText, Forward, FileDown
+  Calendar, MapPin, Trash2, Plus, Gavel, Edit, 
+  CalendarPlus, Clock, Share2, Printer, ArrowRightCircle,
+  X, Loader2, FileText, Search, Filter, Layers, Layout
 } from 'lucide-react';
 
 const KUWAIT_COURTS = [
@@ -26,505 +24,370 @@ const KUWAIT_COURTS = [
   "إدارة الخبراء"
 ];
 
+const CASE_TYPES = [
+  "جنايات", "جنح", "تجاري كلي", "مدني كلي", "أحوال شخصية", "إيجارات", "عمالي", "إداري", "أوامر أداء", "مستعجل"
+];
+
 const CourtAlerts: React.FC = () => {
   const [sessions, setSessions] = useState<CourtSession[]>([]);
-  const [alertSettings, setAlertSettings] = useState<AlertSettings>({
-    notifyBefore: 24,
-    enableMorning: true,
-    enableEvening: true
-  });
-  
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
-    typeof Notification !== 'undefined' ? Notification.permission : 'default'
-  );
-
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  
-  // حقول النموذج
+
+  // Form States
   const [caseNumber, setCaseNumber] = useState('');
+  const [caseType, setCaseType] = useState(CASE_TYPES[0]);
   const [lawyerName, setLawyerName] = useState('');
   const [clientName, setClientName] = useState('');
   const [opponentName, setOpponentName] = useState('');
   const [courtName, setCourtName] = useState(KUWAIT_COURTS[0]);
-  const [location, setLocation] = useState(''); 
-  const [circuit, setCircuit] = useState(''); 
+  const [circuit, setCircuit] = useState(''); // الدائرة
+  const [hall, setHall] = useState('');       // القاعة
+  const [location, setLocation] = useState(''); // الدور/المبنى
   const [sessionDate, setSessionDate] = useState('');
   const [sessionTime, setSessionTime] = useState('09:00');
   const [notes, setNotes] = useState('');
-  const [outcome, setOutcome] = useState('');
   const [status, setStatus] = useState<'upcoming' | 'completed' | 'urgent'>('upcoming');
 
   useEffect(() => {
-    const stored = localStorage.getItem('court_sessions');
-    if (stored) setSessions(JSON.parse(stored));
-    const storedSettings = localStorage.getItem('alert_settings');
-    if (storedSettings) setAlertSettings(JSON.parse(storedSettings));
+    loadData();
   }, []);
 
-  const handleRequestPermission = async () => {
-    if (typeof Notification === 'undefined') {
-      alert("متصفحك لا يدعم التنبيهات المكتبية.");
-      return;
-    }
-    
-    // إذا كان الإذن ممنوحاً بالفعل، أظهر إشعاراً تجريبياً فقط
-    if (Notification.permission === 'granted') {
-      new Notification("القانوني AI", {
-        body: "تنبيهاتك مفعلة بالفعل ونظام الأجندة يراقب مواعيدك.",
-        icon: "https://cdn-icons-png.flaticon.com/512/1041/1041916.png"
-      });
-      return;
-    }
-
-    try {
-      const permission = await Notification.requestPermission();
-      setPermissionStatus(permission);
-      
-      if (permission === 'granted') {
-        new Notification("تم التفعيل بنجاح", {
-          body: "شكراً لك! ستصلك تنبيهات الجلسات القضائية القادمة هنا.",
-          icon: "https://cdn-icons-png.flaticon.com/512/1041/1041916.png"
-        });
-      } else if (permission === 'denied') {
-        alert("يرجى السماح بالتنبيهات من إعدادات المتصفح (القفل بجوار العنوان) لتصلك مواعيد الجلسات.");
-      }
-    } catch (error) {
-      console.error("فشل طلب إذن التنبيهات:", error);
-    }
+  const loadData = async () => {
+    setLoading(true);
+    const data = await StorageService.getSessions();
+    setSessions(data);
+    setLoading(false);
   };
 
-  const saveSessions = (newSessions: CourtSession[]) => {
-    setSessions(newSessions);
-    localStorage.setItem('court_sessions', JSON.stringify(newSessions));
-  };
-
-  const handleAddSession = () => {
+  const handleAddSession = async () => {
     if (!caseNumber || !sessionDate) return alert("يرجى إدخال رقم القضية وتاريخ الجلسة");
     
     const newSession: CourtSession = {
       id: editId || Date.now().toString(),
       caseNumber,
+      caseType,
       lawyerName,
       clientName,
       opponentName,
       courtName,
-      location,
       circuit,
+      hall,
+      location,
       sessionDate,
       sessionTime,
       notes,
-      outcome,
       status
     };
 
+    let updated;
     if (editId) {
-      saveSessions(sessions.map(s => s.id === editId ? newSession : s));
+      updated = sessions.map(s => s.id === editId ? newSession : s);
     } else {
-      saveSessions([newSession, ...sessions]);
+      updated = [newSession, ...sessions];
     }
+    
+    setSessions(updated);
+    await StorageService.saveSessions(updated);
     resetForm();
+  };
+
+  const handleEdit = (s: CourtSession) => {
+    setEditId(s.id);
+    setCaseNumber(s.caseNumber);
+    setCaseType(s.caseType || CASE_TYPES[0]);
+    setClientName(s.clientName || '');
+    setOpponentName(s.opponentName || '');
+    setCourtName(s.courtName);
+    setCircuit(s.circuit || '');
+    setHall(s.hall || '');
+    setLocation(s.location || '');
+    setSessionDate(s.sessionDate);
+    setSessionTime(s.sessionTime);
+    setNotes(s.notes || '');
+    setStatus(s.status);
+    setIsFormOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm("هل أنت متأكد من حذف هذه الجلسة؟")) {
+      const updated = sessions.filter(s => s.id !== id);
+      setSessions(updated);
+      await StorageService.saveSessions(updated);
+    }
+  };
+
+  // وظيفة الترحيل (تأجيل الجلسة)
+  const handleMigrate = async (s: CourtSession) => {
+    const newDate = prompt("أدخل تاريخ الجلسة القادمة (YYYY-MM-DD):", "");
+    if (!newDate) return;
+
+    const updatedSession = { ...s, sessionDate: newDate, status: 'upcoming' as const };
+    const updatedList = sessions.map(item => item.id === s.id ? updatedSession : item);
+    
+    setSessions(updatedList);
+    await StorageService.saveSessions(updatedList);
+    alert(`تم ترحيل القضية رقم ${s.caseNumber} إلى تاريخ ${newDate}`);
+  };
+
+  // وظيفة المشاركة عبر واتساب
+  const handleShare = (s: CourtSession) => {
+    const text = `
+*تذكير جلسة محكمة - ${s.courtName}*
+رقم القضية: ${s.caseNumber} (${s.caseType})
+الموكل: ${s.clientName}
+الدائرة: ${s.circuit || '-'} | القاعة: ${s.hall || '-'}
+التاريخ: ${s.sessionDate} الساعة ${s.sessionTime}
+    `.trim();
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  // وظيفة الطباعة (رول الجلسة)
+  const handlePrint = (s: CourtSession) => {
+    const printContent = `
+      <div style="direction: rtl; font-family: 'Tajawal', sans-serif; padding: 40px; text-align: center; border: 2px solid #000;">
+        <h1 style="margin-bottom: 20px;">بطاقة جلسة محكمة</h1>
+        <hr style="margin: 20px 0;" />
+        <h2 style="font-size: 24px; margin-bottom: 10px;">${s.courtName}</h2>
+        <h3 style="background: #eee; display: inline-block; padding: 5px 20px; border-radius: 5px;">${s.caseType || 'قضية'}</h3>
+        
+        <table style="width: 100%; margin-top: 30px; font-size: 18px; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">رقم القضية:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">${s.caseNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">الموكل:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">${s.clientName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">الخصم:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">${s.opponentName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">الدائرة / القاعة:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">دائرة ${s.circuit || '-'} / قاعة ${s.hall || '-'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">الموعد:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">${s.sessionDate} - ${s.sessionTime}</td>
+          </tr>
+        </table>
+        
+        <div style="margin-top: 40px; text-align: right;">
+          <strong>ملاحظات:</strong>
+          <p>${s.notes || 'لا يوجد'}</p>
+        </div>
+      </div>
+    `;
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (printWindow) {
+      printWindow.document.write(`<html><head><title>طباعة الجلسة</title><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet"></head><body>${printContent}</body></html>`);
+      printWindow.document.close();
+      printWindow.print();
+    }
   };
 
   const resetForm = () => {
     setEditId(null);
     setCaseNumber('');
-    setLawyerName('');
+    setCaseType(CASE_TYPES[0]);
     setClientName('');
     setOpponentName('');
     setCourtName(KUWAIT_COURTS[0]);
-    setLocation('');
     setCircuit('');
+    setHall('');
+    setLocation('');
     setSessionDate('');
     setSessionTime('09:00');
     setNotes('');
-    setOutcome('');
     setStatus('upcoming');
     setIsFormOpen(false);
   };
 
-  const deleteSession = (id: string) => {
-    if (window.confirm("هل أنت متأكد من حذف هذه الجلسة؟")) {
-      saveSessions(sessions.filter(s => s.id !== id));
-    }
-  };
+  const filteredSessions = sessions.filter(s => 
+    s.caseNumber.includes(filter) || s.clientName?.includes(filter) || s.courtName.includes(filter)
+  );
 
-  const postponeSession = (session: CourtSession) => {
-    setEditId(null);
-    setCaseNumber(session.caseNumber);
-    setLawyerName(session.lawyerName);
-    setClientName(session.clientName || '');
-    setOpponentName(session.opponentName || '');
-    setCourtName(session.courtName);
-    setLocation(session.location || '');
-    setCircuit(session.circuit || '');
-    setSessionDate('');
-    setSessionTime('09:00');
-    setNotes(`تأجيل للجلسة القادمة - القيد السابق: ${session.sessionDate}`);
-    setOutcome('');
-    setStatus('upcoming');
-    setIsFormOpen(true);
-  };
-
-  const transferToArchive = (session: CourtSession) => {
-    if (!session.outcome) return alert("يرجى تدوين قرار الجلسة أولاً قبل الترحيل.");
-    const newItem: ArchiveItem = {
-      id: Date.now().toString(),
-      title: `قرار جلسة: ${session.caseNumber}`,
-      caseNumber: session.caseNumber,
-      clientName: session.clientName,
-      type: 'contract',
-      content: `تقرير جلسة قضائية\nرقم القضية: ${session.caseNumber}\nالمحكمة: ${session.courtName}\nالقرار: ${session.outcome}`,
-      timestamp: new Date(),
-      tags: ['جلسة محكمة', 'ترحيل آلي']
-    };
-    const currentArchive = JSON.parse(localStorage.getItem('legal_archive') || '[]');
-    localStorage.setItem('legal_archive', JSON.stringify([newItem, ...currentArchive]));
-    alert("تم ترحيل البيانات للأرشيف بنجاح.");
-  };
-
-  const printFullAgenda = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html dir="rtl" lang="ar">
-        <head>
-          <title>أجندة الجلسات القضائية الكاملة</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
-            body { font-family: 'Tajawal', sans-serif; padding: 40px; color: #333; }
-            .header { text-align: center; margin-bottom: 40px; border-bottom: 4px solid #d97706; padding-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: right; font-size: 14px; }
-            th { background-color: #0f172a; color: white; font-weight: bold; }
-            tr:nth-child(even) { background-color: #f8fafc; }
-            .footer { margin-top: 40px; text-align: left; font-size: 12px; color: #94a3b8; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>اجندة المحكمة ونظام التنبيهات</h1>
-            <p>تقرير الجلسات المجدولة الصادر بتاريخ: ${new Date().toLocaleDateString('ar-KW')}</p>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>رقم القضية</th>
-                <th>المحكمة / الدائرة</th>
-                <th>التاريخ والوقت</th>
-                <th>الموكل</th>
-                <th>الخصم</th>
-                <th>القرار</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sessions.map(s => `
-                <tr>
-                  <td><b>${s.caseNumber}</b></td>
-                  <td>${s.courtName}<br/><small>${s.circuit || '-'}</small></td>
-                  <td>${s.sessionDate}<br/>${s.sessionTime}</td>
-                  <td>${s.clientName || '-'}</td>
-                  <td>${s.opponentName || '-'}</td>
-                  <td>${s.outcome || '<i>في انتظار القرار</i>'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="footer">القانوني AI - نظام الإدارة القانونية المتقدم</div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
-  };
-
-  const handlePrintSession = (session: CourtSession) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html dir="rtl" lang="ar">
-        <head><style>@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap'); body { font-family: 'Tajawal', sans-serif; padding: 50px; }</style></head>
-        <body>
-          <h2 style="text-align: center; border-bottom: 2px solid #d97706; padding-bottom: 10px;">محضر جلسة قضائية منفردة</h2>
-          <div style="margin-top: 30px; font-size: 18px; line-height: 2;">
-            <p><b>رقم القضية:</b> ${session.caseNumber}</p>
-            <p><b>المحكمة:</b> ${session.courtName} - <b>الدائرة:</b> ${session.circuit}</p>
-            <p><b>المكان:</b> ${session.location || 'غير محدد'}</p>
-            <p><b>الموكل:</b> ${session.clientName} / <b>الخصم:</b> ${session.opponentName}</p>
-            <p><b>التاريخ:</b> ${session.sessionDate} - <b>الوقت:</b> ${session.sessionTime}</p>
-            <p><b>المحامي المسؤول:</b> ${session.lawyerName}</p>
-            <hr/>
-            <div style="background: #f1f5f9; padding: 20px; border-radius: 10px;">
-              <h3 style="margin-top: 0;">قرار الجلسة / منطوق الحكم:</h3>
-              <p>${session.outcome || 'لم يتم تدوين قرار بعد'}</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
-  };
+  if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-gold-500" /></div>;
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in bg-gray-50 dark:bg-navy-900 min-h-screen" dir="rtl">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in bg-gray-50 dark:bg-navy-900 min-h-screen pb-32" dir="rtl">
       
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-navy-800 p-6 rounded-[2rem] shadow-xl border border-gray-100 dark:border-navy-700">
-        <div className="flex items-center gap-4">
-           <div className="bg-navy-900 p-3 rounded-2xl shadow-lg border border-gold-500/20">
-             <Gavel className="w-6 h-6 text-gold-500" />
+      {/* Header & Tools */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white dark:bg-navy-800 p-6 rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-navy-700">
+        <div className="flex items-center gap-5">
+           <div className="bg-navy-900 p-4 rounded-3xl shadow-lg border border-gold-500/20">
+             <Gavel className="w-8 h-8 text-gold-500" />
            </div>
            <div>
-             <h2 className="text-xl font-black text-navy-900 dark:text-white">اجندة المحكمة ونظام التنبيهات بالذكاء الصناعي</h2>
-             <p className="text-gray-500 dark:text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-0.5">الإدارة الاستباقية للمواعيد والقرارات</p>
+             <h2 className="text-2xl font-black text-navy-900 dark:text-white">أجندة الجلسات القضائية</h2>
+             <p className="text-gray-500 font-bold text-xs mt-1">إدارة شاملة: مواعيد، دوائر، قاعات، وترحيل آلي</p>
            </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={printFullAgenda}
-            className="bg-navy-100 dark:bg-navy-700 text-navy-900 dark:text-white px-5 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 hover:bg-navy-200 transition-all border border-navy-200 dark:border-navy-600"
-          >
-            <Printer className="w-4 h-4" />
-            طباعة الأجندة كاملة
-          </button>
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          <div className="relative flex-1">
+             <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+             <input 
+              type="text" 
+              placeholder="بحث برقم القضية أو الموكل..." 
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="w-full pl-4 pr-10 py-3 bg-gray-50 dark:bg-navy-900 border-2 border-transparent focus:border-gold-500 rounded-2xl outline-none text-sm font-bold transition-all"
+             />
+          </div>
           <button 
             onClick={() => setIsFormOpen(true)}
-            className="bg-navy-900 dark:bg-gold-600 text-white px-5 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all"
+            className="bg-navy-900 dark:bg-gold-600 text-white px-6 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all"
           >
-            <Plus className="w-4 h-4" />
-            إضافة جلسة
+            <Plus className="w-5 h-5" /> إضافة جلسة جديدة
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Settings Panel */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white dark:bg-navy-800 rounded-[2.5rem] p-8 shadow-xl border border-gray-100 dark:border-navy-700">
-             <div className="flex items-center justify-between mb-8">
-                <h3 className="font-black text-sm text-navy-900 dark:text-white flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-gold-500" />
-                  حالة التنبيه الآلي
-                </h3>
-                <button 
-                  onClick={handleRequestPermission}
-                  className={`p-2.5 rounded-xl transition-all shadow-md ${permissionStatus === 'granted' ? 'bg-gold-500 text-white' : 'bg-gray-100 text-gray-400 animate-pulse'}`}
-                  title={permissionStatus === 'granted' ? "التنبيهات مفعلة" : "اضغط لتفعيل التنبيهات"}
-                >
-                  {permissionStatus === 'granted' ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-                </button>
-             </div>
-             
-             <div className="space-y-4">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">توقيت التذكير الاستباقي</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[24, 48, 72].map(h => (
-                    <button 
-                      key={h} 
-                      onClick={() => setAlertSettings({...alertSettings, notifyBefore: h as any})}
-                      className={`py-3 rounded-xl font-black text-[10px] border-2 transition-all ${alertSettings.notifyBefore === h ? 'border-gold-500 bg-gold-50 text-gold-600' : 'border-gray-50 dark:border-navy-700 text-gray-400 hover:border-gold-300'}`}
-                    >
-                      {h} ساعة
-                    </button>
-                  ))}
+      {/* Sessions Grid */}
+      <div className="grid grid-cols-1 gap-6">
+        {filteredSessions.length === 0 ? (
+           <div className="bg-white dark:bg-navy-800 rounded-[2.5rem] p-16 text-center border-2 border-dashed border-gray-200 dark:border-navy-700 flex flex-col items-center">
+              <div className="bg-gray-100 dark:bg-navy-900 p-6 rounded-full mb-4">
+                <Calendar className="w-12 h-12 text-gray-300" />
+              </div>
+              <h3 className="text-xl font-black text-navy-900 dark:text-white">لا توجد جلسات مدرجة</h3>
+              <p className="text-gray-400 font-bold mt-2 text-sm">استخدم زر "إضافة جلسة" لإنشاء ملف دعوى جديد.</p>
+           </div>
+        ) : (
+           filteredSessions.map(session => (
+             <div key={session.id} className="bg-white dark:bg-navy-800 rounded-[2.5rem] p-6 shadow-xl border border-gray-100 dark:border-navy-700 hover:shadow-2xl transition-all group relative overflow-hidden">
+                {/* Status Strip */}
+                <div className={`absolute top-0 right-0 w-full h-1.5 ${session.status === 'urgent' ? 'bg-red-500' : 'bg-gold-500'}`}></div>
+                
+                <div className="flex flex-col lg:flex-row gap-6">
+                   {/* Main Info */}
+                   <div className="flex-1 space-y-5">
+                      <div className="flex flex-wrap items-center gap-3">
+                         <span className="bg-navy-900 text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide shadow-md">
+                           {session.caseType || 'قضية'}
+                         </span>
+                         <span className="text-navy-900 dark:text-white font-black text-xl flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-gold-500" />
+                            {session.caseNumber}
+                         </span>
+                         <span className="text-xs font-bold text-gray-400 bg-gray-50 dark:bg-navy-900 px-3 py-1 rounded-lg">
+                           {session.courtName}
+                         </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                         <div className="bg-gray-50 dark:bg-navy-900/50 p-3 rounded-2xl">
+                            <span className="text-[9px] text-gray-400 font-black block mb-1">الموكل</span>
+                            <span className="text-xs font-bold text-navy-800 dark:text-gray-200">{session.clientName}</span>
+                         </div>
+                         <div className="bg-gray-50 dark:bg-navy-900/50 p-3 rounded-2xl">
+                            <span className="text-[9px] text-gray-400 font-black block mb-1">الخصم</span>
+                            <span className="text-xs font-bold text-navy-800 dark:text-gray-200">{session.opponentName}</span>
+                         </div>
+                         <div className="bg-gray-50 dark:bg-navy-900/50 p-3 rounded-2xl">
+                            <span className="text-[9px] text-gray-400 font-black block mb-1">الدائرة / القاعة</span>
+                            <span className="text-xs font-bold text-navy-800 dark:text-gray-200">د ({session.circuit || '-'}) / ق ({session.hall || '-'})</span>
+                         </div>
+                         <div className="bg-gold-50 dark:bg-gold-900/10 p-3 rounded-2xl border border-gold-100 dark:border-gold-900/30">
+                            <span className="text-[9px] text-gold-600 font-black block mb-1">موعد الجلسة</span>
+                            <span className="text-xs font-bold text-navy-900 dark:text-white flex items-center gap-1">
+                               <Clock className="w-3 h-3" /> {session.sessionDate} ({session.sessionTime})
+                            </span>
+                         </div>
+                      </div>
+                      
+                      {session.notes && (
+                        <div className="text-xs text-gray-500 font-medium bg-gray-50 dark:bg-navy-900/30 p-3 rounded-xl border-r-4 border-gray-300">
+                          <span className="font-black ml-1">ملاحظات:</span> {session.notes}
+                        </div>
+                      )}
+                   </div>
+
+                   {/* Action Bar - The New Requirement */}
+                   <div className="flex flex-row lg:flex-col gap-3 justify-center items-center lg:border-r lg:pr-6 border-gray-100 dark:border-navy-700 lg:w-32 shrink-0">
+                      <button onClick={() => handleMigrate(session)} className="w-full flex items-center justify-center gap-2 p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black group/btn" title="ترحيل الجلسة">
+                         <ArrowRightCircle className="w-4 h-4 group-hover/btn:rotate-90 transition-transform" /> 
+                         <span className="lg:hidden">ترحيل</span>
+                      </button>
+                      <button onClick={() => handleEdit(session)} className="w-full flex items-center justify-center gap-2 p-2.5 bg-gray-50 text-gray-600 rounded-xl hover:bg-navy-900 hover:text-white transition-all text-[10px] font-black" title="تعديل">
+                         <Edit className="w-4 h-4" />
+                         <span className="lg:hidden">تعديل</span>
+                      </button>
+                      <button onClick={() => handlePrint(session)} className="w-full flex items-center justify-center gap-2 p-2.5 bg-gray-50 text-gray-600 rounded-xl hover:bg-navy-900 hover:text-white transition-all text-[10px] font-black" title="طباعة">
+                         <Printer className="w-4 h-4" />
+                         <span className="lg:hidden">طباعة</span>
+                      </button>
+                      <button onClick={() => handleShare(session)} className="w-full flex items-center justify-center gap-2 p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition-all text-[10px] font-black" title="مشاركة واتساب">
+                         <Share2 className="w-4 h-4" />
+                         <span className="lg:hidden">مشاركة</span>
+                      </button>
+                      <button onClick={() => handleDelete(session.id)} className="w-full flex items-center justify-center gap-2 p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all text-[10px] font-black" title="حذف">
+                         <Trash2 className="w-4 h-4" />
+                         <span className="lg:hidden">حذف</span>
+                      </button>
+                   </div>
                 </div>
              </div>
-          </div>
-
-          <div className="bg-navy-900 rounded-[2rem] p-6 text-white border border-navy-700 shadow-2xl">
-             <h4 className="font-black text-gold-500 mb-2 flex items-center gap-2 text-xs uppercase tracking-widest">
-               <BrainCircuit className="w-4 h-4" />
-               المستشار الذكي
-             </h4>
-             <p className="text-xs font-bold leading-relaxed opacity-70 italic">
-               "سيتم ترحيل القرارات المعتمدة آلياً إلى خزانة الملفات لضمان عدم ضياع أي معلومة قضائية."
-             </p>
-          </div>
-        </div>
-
-        {/* Sessions List */}
-        <div className="lg:col-span-2 space-y-6">
-           {sessions.length === 0 ? (
-             <div className="bg-white dark:bg-navy-800 rounded-[2.5rem] p-20 text-center border-2 border-dashed border-gray-100 dark:border-navy-700">
-                <Calendar className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-                <h3 className="text-xl font-black text-navy-900 dark:text-white">الأجندة خالية</h3>
-                <p className="text-gray-400 font-bold mt-2">ابدأ بإدراج جلساتك القضائية لتفعيل نظام التنبيهات.</p>
-             </div>
-           ) : (
-             <div className="grid grid-cols-1 gap-6">
-                {sessions.map(session => (
-                  <div key={session.id} className="bg-white dark:bg-navy-800 rounded-[2.5rem] p-7 shadow-xl border border-gray-100 dark:border-navy-700 hover:shadow-2xl transition-all group relative overflow-hidden">
-                     <div className={`absolute top-0 left-0 w-2 h-full ${session.status === 'urgent' ? 'bg-red-500' : session.status === 'completed' ? 'bg-green-500' : 'bg-gold-500'}`}></div>
-                     
-                     <div className="flex flex-col md:flex-row justify-between gap-6">
-                        <div className="flex-1 space-y-4">
-                           <div className="flex flex-wrap items-center gap-3">
-                              <span className="bg-navy-900 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-tight">{session.courtName}</span>
-                              <span className="text-gold-600 font-black text-lg">رقم القضية: {session.caseNumber}</span>
-                           </div>
-
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-bold bg-gray-50 dark:bg-navy-900/40 p-5 rounded-[2rem] border dark:border-navy-700">
-                              <div className="flex items-center gap-2.5">
-                                 <UserCheck className="w-4 h-4 text-gold-500" />
-                                 <span className="text-gray-400">الموكل:</span> {session.clientName}
-                              </div>
-                              <div className="flex items-center gap-2.5">
-                                 <Users className="w-4 h-4 text-red-500" />
-                                 <span className="text-gray-400">الخصم:</span> {session.opponentName}
-                              </div>
-                              <div className="flex items-center gap-2.5">
-                                 <Landmark className="w-4 h-4 text-blue-500" />
-                                 <span className="text-gray-400">الدائرة:</span> {session.circuit}
-                              </div>
-                              <div className="flex items-center gap-2.5">
-                                 <MapPin className="w-4 h-4 text-green-500" />
-                                 <span className="text-gray-400">المكان:</span> {session.location}
-                              </div>
-                           </div>
-
-                           <div className="flex flex-wrap gap-6 text-[10px] text-gray-500 font-bold">
-                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gold-500" /> {session.sessionDate}</div>
-                              <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-gold-500" /> {session.sessionTime}</div>
-                              <div className="flex items-center gap-2 bg-navy-50 dark:bg-navy-700/50 px-3 py-1 rounded-lg"><User className="w-4 h-4 text-gold-500" /> المحامي: {session.lawyerName}</div>
-                           </div>
-
-                           {session.outcome && (
-                             <div className="bg-green-50 dark:bg-green-900/10 border-r-4 border-green-500 p-4 rounded-xl mt-2">
-                               <p className="text-[9px] font-black text-green-600 mb-1 uppercase tracking-widest">القرار المعتمد:</p>
-                               <p className="text-sm font-bold dark:text-gray-200 leading-relaxed">{session.outcome}</p>
-                             </div>
-                           )}
-                        </div>
-
-                        {/* أزرار العمليات */}
-                        <div className="flex flex-row md:flex-col gap-2 justify-end shrink-0">
-                           <button onClick={() => postponeSession(session)} className="p-4 bg-navy-900 text-white rounded-2xl hover:bg-gold-500 transition-all shadow-lg shadow-navy-900/10" title="ترحيل لموعد جديد"><CalendarPlus className="w-6 h-6" /></button>
-                           <button onClick={() => handlePrintSession(session)} className="p-4 bg-gray-100 dark:bg-navy-800 text-gray-600 dark:text-white rounded-2xl hover:bg-navy-950 hover:text-white transition-all shadow-sm" title="طباعة محضر"><Printer className="w-6 h-6" /></button>
-                           <button onClick={() => transferToArchive(session)} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/10" title="ترحيل للأرشيف"><ArrowLeftRight className="w-6 h-6" /></button>
-                           <button onClick={() => {
-                              setEditId(session.id);
-                              setCaseNumber(session.caseNumber);
-                              setLawyerName(session.lawyerName);
-                              setClientName(session.clientName || '');
-                              setOpponentName(session.opponentName || '');
-                              setCourtName(session.courtName);
-                              setLocation(session.location || '');
-                              setCircuit(session.circuit || '');
-                              setSessionDate(session.sessionDate);
-                              setSessionTime(session.sessionTime);
-                              setNotes(session.notes || '');
-                              setOutcome(session.outcome || '');
-                              setStatus(session.status);
-                              setIsFormOpen(true);
-                           }} className="p-4 bg-gray-100 dark:bg-navy-800 text-gray-600 dark:text-white rounded-2xl hover:bg-gold-500 hover:text-white transition-all shadow-sm" title="تعديل البيانات"><Edit className="w-6 h-6" /></button>
-                           <button onClick={() => deleteSession(session.id)} className="p-4 bg-red-50 text-red-600 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-sm shadow-red-500/10" title="حذف"><Trash2 className="w-6 h-6" /></button>
-                        </div>
-                     </div>
-                  </div>
-                ))}
-             </div>
-           )}
-        </div>
+           ))
+        )}
       </div>
 
-      {/* Modal Form */}
+      {/* Add/Edit Modal */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-           <div className="absolute inset-0 bg-navy-950/80 backdrop-blur-sm" onClick={resetForm}></div>
-           <div className="relative bg-white dark:bg-navy-800 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border dark:border-navy-700 animate-scale-up">
-              <header className="p-5 bg-navy-900 text-white flex justify-between items-center shrink-0">
-                 <h3 className="text-lg font-black flex items-center gap-3">
-                   <CalendarPlus className="w-6 h-6 text-gold-500" />
-                   {editId ? 'تحديث بيانات الجلسة' : 'إدراج جلسة جديدة'}
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-navy-950/80 backdrop-blur-sm animate-fade-in">
+           <div className="bg-white dark:bg-navy-800 w-full max-w-3xl rounded-[2.5rem] p-8 shadow-2xl border dark:border-navy-700 animate-scale-up max-h-[90vh] overflow-y-auto">
+              <header className="mb-8 flex justify-between items-center border-b pb-4 dark:border-navy-700">
+                 <h3 className="text-xl font-black flex items-center gap-3 text-navy-900 dark:text-white">
+                   <CalendarPlus className="w-7 h-7 text-gold-500" /> 
+                   {editId ? 'تعديل بيانات الجلسة' : 'إدراج جلسة جديدة'}
                  </h3>
-                 <button onClick={resetForm} className="p-2 hover:bg-white/10 rounded-xl transition-colors"><X className="w-5 h-5" /></button>
+                 <button onClick={resetForm} className="p-2 bg-gray-100 dark:bg-navy-700 rounded-full hover:bg-red-500 hover:text-white transition-all"><X className="w-5 h-5" /></button>
               </header>
-
-              <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gold-600 uppercase tracking-widest flex items-center gap-2">
-                       <FileText className="w-3 h-3" /> رقم القضية (الأولوية القصوى)
-                    </label>
-                    <input 
-                      type="text" 
-                      value={caseNumber} 
-                      onChange={(e) => setCaseNumber(e.target.value)} 
-                      placeholder="أدخل رقم القضية (مثال: 123/2024)" 
-                      className="w-full p-3.5 bg-navy-50 dark:bg-navy-900 border-2 border-navy-900/10 dark:border-navy-700 rounded-2xl font-bold outline-none focus:border-gold-500 dark:text-white text-base transition-all" 
-                    />
+              
+              <div className="space-y-6">
+                 {/* بيانات المحكمة */}
+                 <div className="bg-gray-50 dark:bg-navy-900/50 p-5 rounded-3xl space-y-4">
+                    <h4 className="text-xs font-black text-gold-600 uppercase flex items-center gap-2"><Layout className="w-4 h-4" /> تفاصيل المحكمة</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <select value={courtName} onChange={(e) => setCourtName(e.target.value)} className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500">
+                         {KUWAIT_COURTS.map(c => <option key={c} value={c}>{c}</option>)}
+                       </select>
+                       <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="المبنى / الدور" className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <input type="text" value={circuit} onChange={(e) => setCircuit(e.target.value)} placeholder="الدائرة (مثال: تجاري 5)" className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
+                       <input type="text" value={hall} onChange={(e) => setHall(e.target.value)} placeholder="رقم القاعة" className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
+                    </div>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gray-500 uppercase">المحكمة</label>
-                       <select value={courtName} onChange={(e) => setCourtName(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 rounded-xl font-bold dark:text-white outline-none focus:border-gold-500 text-sm">
-                         {KUWAIT_COURTS.map(c => <option key={c}>{c}</option>)}
+                 {/* بيانات القضية */}
+                 <div className="bg-gray-50 dark:bg-navy-900/50 p-5 rounded-3xl space-y-4">
+                    <h4 className="text-xs font-black text-gold-600 uppercase flex items-center gap-2"><Layers className="w-4 h-4" /> بيانات الدعوى</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <input type="text" value={caseNumber} onChange={(e) => setCaseNumber(e.target.value)} placeholder="رقم القضية (الآلي)" className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
+                       <select value={caseType} onChange={(e) => setCaseType(e.target.value)} className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500">
+                          {CASE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                        </select>
                     </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gray-500 uppercase">الدائرة</label>
-                       <input type="text" value={circuit} onChange={(e) => setCircuit(e.target.value)} placeholder="تجاري / 5" className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 rounded-xl font-bold dark:text-white text-sm" />
-                    </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gray-500 uppercase">القاعة / الدور</label>
-                       <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="قاعة 12" className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 rounded-xl font-bold dark:text-white text-sm" />
+                    <div className="grid grid-cols-2 gap-4">
+                       <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="الموكل" className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
+                       <input type="text" value={opponentName} onChange={(e) => setOpponentName(e.target.value)} placeholder="الخصم" className="p-4 bg-white dark:bg-navy-800 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gold-600 uppercase flex items-center gap-1"><UserCheck className="w-3 h-3" /> الموكل</label>
-                       <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="اسم الموكل" className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 border-gold-500/10 rounded-xl font-bold dark:text-white text-sm" />
-                    </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-red-500 uppercase flex items-center gap-1"><Users className="w-3 h-3" /> الخصم</label>
-                       <input type="text" value={opponentName} onChange={(e) => setOpponentName(e.target.value)} placeholder="اسم الخصم" className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 border-red-500/10 rounded-xl font-bold dark:text-white text-sm" />
-                    </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gray-500 uppercase">المحامي</label>
-                       <input type="text" value={lawyerName} onChange={(e) => setLawyerName(e.target.value)} placeholder="المحامي المسؤول" className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 rounded-xl font-bold dark:text-white text-sm" />
-                    </div>
+                 {/* التوقيت */}
+                 <div className="grid grid-cols-2 gap-4">
+                    <input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className="p-4 bg-gray-50 dark:bg-navy-900/50 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
+                    <input type="time" value={sessionTime} onChange={(e) => setSessionTime(e.target.value)} className="p-4 bg-gray-50 dark:bg-navy-900/50 border-2 border-transparent rounded-2xl font-bold dark:text-white text-sm outline-none focus:border-gold-500" />
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gray-500 uppercase">تاريخ الجلسة</label>
-                       <input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 rounded-xl font-bold dark:text-white text-sm outline-none" />
-                    </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gray-500 uppercase">الوقت</label>
-                       <input type="time" value={sessionTime} onChange={(e) => setSessionTime(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-navy-900 border-2 rounded-xl font-bold dark:text-white text-sm outline-none" />
-                    </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black text-navy-900 dark:text-gold-500 uppercase">حالة الجلسة</label>
-                       <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="w-full p-3 bg-navy-50 dark:bg-navy-900 border-2 border-navy-950/10 dark:border-navy-700 rounded-xl font-black dark:text-white text-sm outline-none focus:border-gold-500">
-                         <option value="upcoming">قادمة</option>
-                         <option value="urgent">عاجلة جداً</option>
-                         <option value="completed">تم الحضور / منتهية</option>
-                       </select>
-                    </div>
-                 </div>
-
-                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-green-600 uppercase tracking-widest flex items-center gap-2">
-                       <CheckCircle2 className="w-4 h-4" /> قرار الجلسة (المنطوق)
-                    </label>
-                    <textarea 
-                      value={outcome} 
-                      onChange={(e) => {
-                        setOutcome(e.target.value);
-                        if (e.target.value && status !== 'completed') setStatus('completed');
-                      }} 
-                      placeholder="دون هنا منطوق الحكم أو ما تم في الجلسة..." 
-                      className="w-full p-3.5 bg-green-50/20 dark:bg-green-900/10 border-2 border-green-500/20 rounded-2xl font-bold dark:text-white min-h-[100px] outline-none text-sm transition-all focus:bg-green-50/50" 
-                    />
-                 </div>
-
-                 <button onClick={handleAddSession} className="w-full py-5 bg-navy-950 dark:bg-gold-600 text-white rounded-[1.5rem] font-black text-lg shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3">
-                   <Save className="w-6 h-6" />
-                   {editId ? 'حفظ التغييرات' : 'إدراج في الأجندة القضائية'}
+                 <button onClick={handleAddSession} className="w-full py-5 bg-navy-900 dark:bg-gold-600 text-white rounded-2xl font-black text-lg shadow-xl hover:scale-[1.01] active:scale-95 transition-all">
+                    {editId ? 'حفظ التعديلات' : 'إدراج في الأجندة'}
                  </button>
               </div>
            </div>

@@ -10,6 +10,7 @@ import Settings from './components/Settings';
 import EngineSettings from './components/EngineSettings';
 import CourtAlerts from './components/CourtAlerts';
 import GuideArticle from './components/GuideArticle';
+import ServerConnection from './components/ServerConnection'; // استيراد المكون الجديد
 import { AppSection, CourtSession, AlertSettings } from './types';
 import { Moon, Sun, Menu, Scale, Bell } from 'lucide-react';
 
@@ -32,7 +33,7 @@ function App() {
     }
   }, [isDarkMode]);
 
-  // نظام التنبيهات التلقائي
+  // نظام التنبيهات
   useEffect(() => {
     const checkAlerts = () => {
       const storedSessions = localStorage.getItem('court_sessions');
@@ -93,6 +94,7 @@ function App() {
       case AppSection.ENGINE: return <EngineSettings />;
       case AppSection.ALERTS: return <CourtAlerts />;
       case AppSection.GUIDE: return <GuideArticle />;
+      case AppSection.SERVER: return <ServerConnection />; // عرض الصفحة الجديدة
       default: return <Dashboard setSection={handleSectionChange} />;
     }
   };
@@ -100,7 +102,6 @@ function App() {
   return (
     <div className={`flex min-h-screen ${isDarkMode ? 'dark' : ''} bg-gray-50 dark:bg-navy-900 font-sans relative`} dir="rtl">
       
-      {/* إشعارات النظام */}
       {notificationMsg && (
         <div className="fixed top-24 left-6 z-[100] animate-bounce-in">
            <div className="bg-navy-900 text-white p-6 rounded-2xl shadow-2xl border-r-4 border-gold-500 flex items-center gap-4 max-w-sm">
@@ -113,7 +114,6 @@ function App() {
         </div>
       )}
 
-      {/* القائمة الجانبية - موبايل */}
       {isSidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm transition-opacity duration-300" onClick={() => setIsSidebarOpen(false)} />
       )}
@@ -124,74 +124,74 @@ function App() {
       
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50 dark:bg-navy-900">
         
-        {/* Header - النسخة النهائية المستقرة */}
-        <header className="bg-white/95 dark:bg-navy-800/95 backdrop-blur-md border-b border-gray-200 dark:border-navy-700 h-16 sm:h-20 w-full shadow-lg z-40 sticky top-0 print:hidden transition-all duration-300">
-          <div className="flex items-center justify-between w-full h-full px-4 lg:px-10">
+        {/* Header - Final Engineered Version */}
+        <header className="bg-white dark:bg-navy-800 border-b-2 border-gray-100 dark:border-navy-700 h-16 sm:h-20 w-full shadow-lg z-[40] sticky top-0 print:hidden transition-colors duration-300">
+          <div className="flex items-center justify-between w-full h-full px-4 sm:px-8 max-w-[100vw]">
             
-            {/* جهة اليمين: اللوجو والقائمة */}
-            <div className="flex items-center gap-3">
+            {/* جهة اليمين: اللوجو */}
+            <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
               <button 
                 onClick={() => setIsSidebarOpen(true)} 
-                className="lg:hidden p-2 text-navy-900 dark:text-white bg-gray-100 dark:bg-navy-700 rounded-xl hover:bg-gray-200 transition-all flex-shrink-0"
+                className="lg:hidden p-2.5 text-navy-900 dark:text-white bg-gray-100 dark:bg-navy-700 rounded-xl hover:bg-gray-200 transition-all flex-shrink-0"
+                aria-label="القائمة"
               >
                 <Menu className="w-6 h-6" />
               </button>
               <div 
-                className="flex items-center gap-2 cursor-pointer group" 
+                className="flex items-center gap-2 cursor-pointer group flex-shrink-0" 
                 onClick={() => handleSectionChange(AppSection.DASHBOARD)}
               >
                 <Scale className="w-6 h-6 sm:w-8 sm:h-8 text-gold-500 transition-transform group-hover:rotate-12" />
-                <span className="font-black text-navy-900 dark:text-white text-base sm:text-2xl whitespace-nowrap tracking-tight">القانوني AI</span>
+                <div className="flex flex-col">
+                  <span className="font-black text-navy-900 dark:text-white text-base sm:text-2xl whitespace-nowrap tracking-tight">القانوني AI</span>
+                  <span className="text-[8px] sm:text-[10px] font-black text-gold-600 dark:text-gold-500 uppercase tracking-tighter leading-none">Powered by Gemini 3.1</span>
+                </div>
               </div>
             </div>
 
-            {/* جهة اليسار: أدوات التواصل والوضع الليلي */}
-            <div className="flex items-center gap-2 sm:gap-4 flex-nowrap">
+            {/* جهة اليسار: أدوات التواصل (حقن SVG مباشر) */}
+            <div className="flex items-center gap-3 sm:gap-5 flex-nowrap flex-shrink-0">
               
-              {/* أيقونة فيسبوك - SVG مباشر بألوان البراند */}
+              {/* زر فيسبوك - SVG مباشر محقون */}
               <a 
                 href="https://www.facebook.com/2019sissi_" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-[#1877F2] text-white rounded-xl sm:rounded-2xl shadow-md hover:scale-110 active:scale-95 transition-all flex-shrink-0 border-2 border-white dark:border-navy-700"
-                title="فيسبوك"
+                className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-[#1877F2] rounded-xl sm:rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-all flex-shrink-0 border-2 border-white dark:border-navy-700"
+                title="Facebook"
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
                   <path d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 16.9913 5.65684 21.1283 10.4375 21.8785V14.8906H7.89844V12H10.4375V9.79688C10.4375 7.29063 11.9305 5.90625 14.2148 5.90625C15.3086 5.90625 16.4531 6.10156 16.4531 6.10156V8.5625H15.1922C13.95 8.5625 13.5625 9.33359 13.5625 10.1242V12H16.3359L15.8926 14.8906H13.5625V21.8785C18.3432 21.1283 22 16.9913 22 12Z" />
                 </svg>
               </a>
 
-              {/* أيقونة واتساب - SVG مباشر بألوان البراند */}
+              {/* زر واتساب - SVG مباشر محقون */}
               <a 
                 href="https://wa.me/201000111428" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-[#25D366] text-white rounded-xl sm:rounded-2xl shadow-md hover:scale-110 active:scale-95 transition-all flex-shrink-0 border-2 border-white dark:border-navy-700"
-                title="واتساب"
+                className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-[#25D366] rounded-xl sm:rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-all flex-shrink-0 border-2 border-white dark:border-navy-700"
+                title="WhatsApp"
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.7c.9 0 1.8.1 2.6.4" />
-                  <path d="m15.8 5.6 3.9 3.9" />
-                  <path d="m21 9.5-3.9-3.9" />
-                  <path d="M17 18h.01" />
-                  <path d="M12 18h.01" />
-                  <path d="M7 18h.01" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                 </svg>
               </a>
 
-              {/* فاصل مرئي */}
+              {/* فاصل عمودي مرئي */}
               <div className="w-[1px] h-8 bg-gray-200 dark:bg-navy-700 mx-1 flex-shrink-0"></div>
 
-              {/* تبديل الوضع الليلي */}
+              {/* زر تبديل الوضع الليلي */}
               <button 
                 onClick={toggleDarkMode}
-                className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 dark:bg-navy-900 text-navy-800 dark:text-gold-500 rounded-xl sm:rounded-2xl border-2 border-transparent hover:border-gold-500 shadow-sm transition-all flex-shrink-0"
+                className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-100 dark:bg-navy-900 text-navy-800 dark:text-gold-500 rounded-xl sm:rounded-2xl border-2 border-transparent hover:border-gold-500 shadow-sm transition-all flex-shrink-0"
                 aria-label="تبديل الوضع"
               >
                 {isDarkMode ? <Sun className="w-5 h-5 sm:w-6 sm:h-6" /> : <Moon className="w-5 h-5 sm:w-6 sm:h-6" />}
               </button>
 
             </div>
+
           </div>
         </header>
 

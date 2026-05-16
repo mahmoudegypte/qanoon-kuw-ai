@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { extractTextFromImage, transcribeAudio } from '../services/geminiService';
+import { extractTextFromImage, transcribeAudio, generateSpeech } from '../services/geminiService';
 import { OcrPage, ArchiveItem } from '../types';
-import { Upload, FileText, Trash2, Copy, Check, Printer, Mic, Square, Sparkles, FileAudio, ScanText, Archive, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, Trash2, Copy, Check, Printer, Mic, Square, Sparkles, FileAudio, ScanText, Archive, X, AlertCircle, Loader2, Volume2, Download } from 'lucide-react';
 
 const OCRTool: React.FC = () => {
   const [pages, setPages] = useState<OcrPage[]>([]);
@@ -13,6 +13,7 @@ const OCRTool: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [highPrecision, setHighPrecision] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -192,6 +193,39 @@ const OCRTool: React.FC = () => {
     alert("تم الحفظ في الأرشيف العربي بنجاح.");
   };
 
+  const handleTTS = async () => {
+    const active = pages.find(p => p.id === selectedPageId);
+    if (!active || active.isProcessing || isSpeaking) return;
+    setIsSpeaking(true);
+    try {
+      const base64 = await generateSpeech(active.extractedText);
+      if (base64) {
+        const audio = new Audio(`data:audio/mp3;base64,${base64}`);
+        audio.onended = () => setIsSpeaking(false);
+        audio.play();
+      } else {
+        setIsSpeaking(false);
+      }
+    } catch (err) {
+      console.error(err);
+      setIsSpeaking(false);
+    }
+  };
+
+  const handleDownload = () => {
+    const active = pages.find(p => p.id === selectedPageId);
+    if (!active || active.isProcessing) return;
+    const blob = new Blob([active.extractedText], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `OCR-${new Date().toLocaleDateString('ar-KW')}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const activePage = pages.find(p => p.id === selectedPageId);
 
   return (
@@ -330,11 +364,26 @@ const OCRTool: React.FC = () => {
                   </div>
                   <div className="flex gap-2">
                     <button 
+                      onClick={handleTTS} 
+                      className={`p-3 rounded-xl transition-all flex items-center gap-2 text-xs px-4 ${isSpeaking ? 'bg-gold-500 text-white animate-pulse' : 'bg-navy-900 hover:bg-navy-800 border border-navy-800'}`}
+                    >
+                      <Volume2 className="w-4 h-4" />
+                      <span className="font-bold">{isSpeaking ? 'جاري القراءة...' : 'استماع'}</span>
+                    </button>
+                    <button 
                       onClick={handleCopy} 
                       className="p-3 bg-navy-900 hover:bg-navy-800 border border-navy-800 rounded-xl transition-all flex items-center gap-2 text-xs px-4"
                     >
                       {copied ? <Check className="text-green-400 w-4 h-4" /> : <Copy className="w-4 h-4 text-gray-400" />}
                       <span className="font-bold">نسخ النص</span>
+                    </button>
+                    <button 
+                      onClick={handleDownload} 
+                      className="p-3 bg-navy-900 hover:bg-navy-800 border border-navy-800 rounded-xl transition-all flex items-center gap-2 text-xs px-4"
+                      title="تحميل ملف Word"
+                    >
+                      <Download className="w-4 h-4 text-gray-400" />
+                      <span className="font-bold">تحميل</span>
                     </button>
                     <button 
                       onClick={() => window.print()} 

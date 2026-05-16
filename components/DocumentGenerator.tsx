@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { generateLegalDocument } from '../services/geminiService';
-import { Printer, PenTool, Loader2, Archive, Copy, Check, Layout, ShieldCheck, MessageSquare, Scale, UserCheck, Hash, FileText, Banknote, CreditCard } from 'lucide-react';
+import { generateLegalDocument, generateSpeech } from '../services/geminiService';
+import { Printer, PenTool, Loader2, Archive, Copy, Check, Layout, ShieldCheck, MessageSquare, Scale, UserCheck, Hash, FileText, Banknote, CreditCard, Volume2, Download } from 'lucide-react';
 import { FirmSettings, ArchiveItem } from '../types';
 
 const DocumentGenerator: React.FC = () => {
@@ -22,6 +22,7 @@ const DocumentGenerator: React.FC = () => {
   
   const [generatedDoc, setGeneratedDoc] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [settings, setSettings] = useState<FirmSettings | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -182,6 +183,37 @@ const DocumentGenerator: React.FC = () => {
     alert("تم الأرشفة بنجاح.");
   };
 
+  const handleTTS = async () => {
+    if (!generatedDoc || isSpeaking) return;
+    setIsSpeaking(true);
+    try {
+      const base64 = await generateSpeech(generatedDoc);
+      if (base64) {
+        const audio = new Audio(`data:audio/mp3;base64,${base64}`);
+        audio.onended = () => setIsSpeaking(false);
+        audio.play();
+      } else {
+        setIsSpeaking(false);
+      }
+    } catch (err) {
+      console.error(err);
+      setIsSpeaking(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (!generatedDoc) return;
+    const blob = new Blob([generatedDoc], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${docType}-${partyA || 'مستند'}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto pb-24 space-y-8 animate-fade-in bg-[#f8fafc] dark:bg-navy-900">
       <div className="mb-6">
@@ -307,10 +339,15 @@ const DocumentGenerator: React.FC = () => {
              <div className="flex gap-2">
                 {generatedDoc && (
                   <>
+                    <button onClick={handleTTS} className={`p-3 rounded-xl transition-all flex items-center gap-2 text-xs font-black shadow-lg ${isSpeaking ? 'bg-gold-500 text-white animate-pulse' : 'bg-white text-navy-950 hover:bg-gold-500 hover:text-white'}`} title="استماع للنص">
+                      <Volume2 className="w-4 h-4" />
+                      {isSpeaking ? 'جاري القراءة...' : 'استماع'}
+                    </button>
                     <button onClick={handleCopy} className="p-3 bg-white text-navy-950 hover:bg-gold-500 hover:text-white rounded-xl transition-all flex items-center gap-2 text-xs font-black shadow-lg" title="نسخ النص كاملاً">
                       {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                       {copied ? 'تم النسخ' : 'نسخ النص'}
                     </button>
+                    <button onClick={handleDownload} className="p-3 bg-navy-800 hover:bg-gold-600 text-white rounded-xl transition-all shadow-lg" title="تحميل ملف Word"><Download className="w-4 h-4" /></button>
                     <button onClick={handleArchive} className="p-3 bg-navy-800 hover:bg-gold-600 text-white rounded-xl transition-all shadow-lg" title="أرشفة في المجلدات"><Archive className="w-4 h-4" /></button>
                     <button onClick={() => window.print()} className="p-3 bg-navy-800 hover:bg-gold-600 text-white rounded-xl transition-all shadow-lg" title="طباعة فورية"><Printer className="w-4 h-4" /></button>
                   </>
